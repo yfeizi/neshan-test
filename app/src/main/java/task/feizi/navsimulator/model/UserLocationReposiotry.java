@@ -14,7 +14,11 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnSuccessListener;
 
-public class UserLocationLiveData extends LiveData<LocationModel> {
+import org.neshan.common.model.LatLng;
+
+public class UserLocationReposiotry extends LiveData<LatLng> {
+    public static final int LOCATION_UPDATE_INTERVAL = 3000;
+    public static final int LOCATION_UPDATE_FASTEST_INTERVAL = 3000;
     private final FusedLocationProviderClient fusedLocationProviderClient;
     private Context context;
     private final LocationRequest locationRequest = LocationRequest.create();
@@ -28,12 +32,12 @@ public class UserLocationLiveData extends LiveData<LocationModel> {
         }
     };
 
-    public UserLocationLiveData(Context context) {
+    public UserLocationReposiotry(Context context) {
         this.context = context;
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context);
 
-        locationRequest.setInterval(10000);
-        locationRequest.setFastestInterval(5000);
+        locationRequest.setInterval(LOCATION_UPDATE_INTERVAL);
+        locationRequest.setFastestInterval(LOCATION_UPDATE_FASTEST_INTERVAL);
         locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
     }
 
@@ -58,7 +62,7 @@ public class UserLocationLiveData extends LiveData<LocationModel> {
 
     private void setLocationData(Location location) {
         if (location != null)
-            this.setValue(new LocationModel(location.getLongitude(), location.getLatitude()));
+            this.setValue(new LatLng(location.getLongitude(), location.getLatitude()));
     }
 
     @SuppressLint("MissingPermission")

@@ -10,21 +10,22 @@ import org.neshan.mapsdk.model.Marker;
 import org.neshan.servicessdk.direction.model.Route;
 
 import task.feizi.navsimulator.model.DirectionRepository;
-import task.feizi.navsimulator.model.UserLocationLiveData;
+import task.feizi.navsimulator.model.UserLocationReposiotry;
 
 public class LocationViewModel extends AndroidViewModel {
 
-    private UserLocationLiveData locationLiveData;
+    private UserLocationReposiotry locationLiveData;
     public LocationViewModel(@NonNull Application application) {
         super(application);
-        locationLiveData = new UserLocationLiveData(application);
+        locationLiveData = new UserLocationReposiotry(application);
     }
 
     public MutableLiveData<Route> getRoute(Marker start, Marker end){
-        return DirectionRepository.getInstance().getListOfMoviesOutputs(start,end);
+        //return DirectionRepository.getInstance().getRouteBySdk(start,end);
+        return DirectionRepository.getInstance().getRouteByRetrofit(start,end);
     }
 
-    public UserLocationLiveData getLocationLiveData() {
+    public UserLocationReposiotry getLocationLiveData() {
         return locationLiveData;
     }
 }

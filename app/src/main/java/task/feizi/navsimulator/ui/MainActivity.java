@@ -39,42 +39,50 @@ public class MainActivity extends AppCompatActivity {
     private static final int LOCATION_REQUEST = 100;
     private LocationViewModel locationViewModel;
     private ActivityMainBinding binding;
-    private LatLng userCurrentLocation;
-    private Marker userCurrentLocationMarker;
+    private LatLng userOriginLocation;
+    private Marker userOriginLocationMarker;
     private Marker destinationLocationMarker;
     private ArrayList<LatLng> routeOverviewPolylinePoints;
     private ArrayList<Object> decodedStepByStepPath;
     private Polyline onMapPolyline;
+    private LatLng userCurrnetLocation;
+    private Marker userCurrnetLocationMarker;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         binding = DataBindingUtil.setContentView(this, R.layout.activity_main);
-        // when long clicked on map, a marker is added in clicked location
+
+
+        initMap();
+        locationViewModel = new ViewModelProvider(this).get(LocationViewModel.class);
+    }
+
+    private void initMap() {
         binding.map.setOnMapLongClickListener(new MapView.OnMapLongClickListener() {
             @Override
             public void onMapLongClick(LatLng latLng) {
-                addDestinationMarker(latLng);
+                addDestinationMarker(latLng); // destination marker will be added in clicked location and previous marker will be removed
                 Handler handler = new Handler(Looper.getMainLooper());
                 handler.post(new Runnable() {
                     public void run() {
-                        drawRoute();
+                        drawRoute(); // get route information between origin and destination marker
                     }
                 });
 
             }
         });
-        locationViewModel = new ViewModelProvider(this).get(LocationViewModel.class);
     }
 
     private void drawRoute() {
-        locationViewModel.getRoute(userCurrentLocationMarker,destinationLocationMarker).observe(this, route -> {
-            if (onMapPolyline!=null) {
+        locationViewModel.getRoute(userOriginLocationMarker, destinationLocationMarker).observe(this, route -> {
+            // remove previous polyline if exist
+            if (onMapPolyline != null) {
                 binding.map.removePolyline(onMapPolyline);
             }
+
             routeOverviewPolylinePoints = new ArrayList<>(PolylineEncoding.decode(route.getOverviewPolyline().getEncodedPolyline()));
             decodedStepByStepPath = new ArrayList<>();
-
             // decoding each segment of steps and putting to an array
             for (DirectionStep step : route.getLegs().get(0).getDirectionSteps()) {
                 decodedStepByStepPath.addAll(PolylineEncoding.decode(step.getEncodedPolyline()));
@@ -84,23 +92,18 @@ public class MainActivity extends AppCompatActivity {
             //draw polyline between route points
             binding.map.addPolyline(onMapPolyline);
             // focusing camera on first point of drawn line
-            mapSetPosition(false);
+            setMapPosition();
         });
     }
-    private void mapSetPosition(boolean overview) {
-        double centerFirstMarkerX = userCurrentLocationMarker.getLatLng().getLatitude();
-        double centerFirstMarkerY = userCurrentLocationMarker.getLatLng().getLongitude();
-        if (overview) {
-            double centerFocalPositionX = (centerFirstMarkerX + destinationLocationMarker.getLatLng().getLatitude()) / 2;
-            double centerFocalPositionY = (centerFirstMarkerY + destinationLocationMarker.getLatLng().getLongitude()) / 2;
-            binding.map.moveCamera(new LatLng(centerFocalPositionX, centerFocalPositionY), 0.5f);
-            binding.map.setZoom(14, 0.5f);
-        } else {
-            binding.map.moveCamera(new LatLng(centerFirstMarkerX, centerFirstMarkerY), 0.5f);
-            binding.map.setZoom(18, 0.5f);
-        }
+
+    private void setMapPosition() {
+        double centerFirstMarkerX = userOriginLocationMarker.getLatLng().getLatitude();
+        double centerFirstMarkerY = userOriginLocationMarker.getLatLng().getLongitude();
+        binding.map.moveCamera(new LatLng(centerFirstMarkerX, centerFirstMarkerY), 0.5f);
+        binding.map.setZoom(18, 0.5f);
 
     }
+
     private LineStyle getLineStyle() {
         LineStyleBuilder lineStCr = new LineStyleBuilder();
         lineStCr.setColor(new Color((short) 2, (short) 119, (short) 189, (short) 190));
@@ -110,21 +113,20 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
+        // check if required permissions granted and start update user location
         invokeUserLocation();
     }
 
 
-
-    private void invokeUserLocation(){
+    private void invokeUserLocation() {
         if (isPermissionGranted()) {
             startLocationUpdate();
-        }else if (shouldShowRequestPermission()){
+        } else if (shouldShowRequestPermission()) {
             Toast.makeText(this, "App requires location permission", Toast.LENGTH_SHORT).show();
         } else {
-            String[] permissions = {Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION};
-            ActivityCompat.requestPermissions(this,permissions,LOCATION_REQUEST);
+            String[] permissions = {Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION};
+            ActivityCompat.requestPermissions(this, permissions, LOCATION_REQUEST);
         }
-
 
 
     }
@@ -132,45 +134,61 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == LOCATION_REQUEST){
+        if (requestCode == LOCATION_REQUEST) {
             invokeUserLocation();
         }
     }
 
     private void startLocationUpdate() {
         locationViewModel.getLocationLiveData().observe(this, locationModel -> {
-            if(userCurrentLocation == null){
-                userCurrentLocation = new LatLng(locationModel.getLatitude(), locationModel.getLongitude());
+            // add user origin location for first time
+            if (userOriginLocation == null) {
+                userOriginLocation = locationModel;
                 setUserLocationOnMap();
             }
+            // add and update user current location marker
+            userCurrnetLocation = locationModel;
+            setUserCurrentLocationOnMap();
+
         });
     }
-    private void setUserLocationOnMap(){
-        binding.map.moveCamera(userCurrentLocation,0 );
-        binding.map.setZoom(17,2);
-        setCurrentLoactionMarker(userCurrentLocation);
+
+    private void setUserLocationOnMap() {
+        binding.map.moveCamera(userOriginLocation, 0);
+        binding.map.setZoom(17, 2);
+        setOriginLoactionMarker(userOriginLocation);
+    }
+    private void setUserCurrentLocationOnMap() {
+        setCurrentLoactionMarker(userCurrnetLocation);
     }
 
-    private void setCurrentLoactionMarker(LatLng  loc) {
-        if (userCurrentLocationMarker !=null){
-            binding.map.removeMarker(userCurrentLocationMarker);
+    private void setOriginLoactionMarker(LatLng loc) {
+        if (userOriginLocationMarker != null) {
+            binding.map.removeMarker(userOriginLocationMarker);
         }
-        userCurrentLocationMarker = addMarker(loc,  R.drawable.ic_marker_a);
+        userOriginLocationMarker = addMarker(loc, R.drawable.ic_marker_a);
     }
-    private void addDestinationMarker(LatLng loc) {
-        if (destinationLocationMarker !=null){
+    private void setCurrentLoactionMarker(LatLng loc) {
+        if (userCurrnetLocationMarker != null) {
+            binding.map.removeMarker(userCurrnetLocationMarker);
+        }
+        userCurrnetLocationMarker = addMarker(loc, R.drawable.ic_marker);
+    }
+
+    private void addDestinationMarker(LatLng location) {
+        if (destinationLocationMarker != null) {
             binding.map.removeMarker(destinationLocationMarker);
         }
-        destinationLocationMarker = addMarker(loc,  R.drawable.ic_marker_b);
+        destinationLocationMarker = addMarker(location, R.drawable.ic_marker_b);
     }
 
-    private Marker addMarker(LatLng loc, int resId) {
+    private Marker addMarker(LatLng location, int resId) {
         // Creating marker
-        MarkerStyleBuilder markStCr = new MarkerStyleBuilder();
-        markStCr.setSize(20f);
-        markStCr.setBitmap(BitmapUtils.createBitmapFromAndroidBitmap(BitmapFactory.decodeResource(getResources(), resId)));
-        MarkerStyle markSt = markStCr.buildStyle();
-        Marker marker = new Marker(loc, markSt);
+        MarkerStyleBuilder markerStyleBuilder = new MarkerStyleBuilder();
+        markerStyleBuilder.setSize(20f);
+        markerStyleBuilder.setBitmap(BitmapUtils.createBitmapFromAndroidBitmap(BitmapFactory.decodeResource(getResources(), resId)));
+        MarkerStyle markStyle = markerStyleBuilder.buildStyle();
+        Marker marker = new Marker(location, markStyle);
 
         // Adding marker to map!
         binding.map.addMarker(marker);
@@ -178,18 +196,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private boolean isPermissionGranted() {
-        return ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        return ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
 
     }
 
-    private boolean shouldShowRequestPermission(){
+    private boolean shouldShowRequestPermission() {
         return ActivityCompat.shouldShowRequestPermissionRationale(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
-        ) && ActivityCompat.shouldShowRequestPermissionRationale(
-                this,
-                Manifest.permission.ACCESS_COARSE_LOCATION
         );
     }
 }
