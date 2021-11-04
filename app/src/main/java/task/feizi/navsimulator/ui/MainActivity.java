@@ -27,12 +27,14 @@ import org.neshan.mapsdk.MapView;
 import org.neshan.mapsdk.model.Marker;
 import org.neshan.mapsdk.model.Polyline;
 import org.neshan.servicessdk.direction.model.DirectionStep;
+import org.neshan.servicessdk.direction.model.Route;
 
 import java.util.ArrayList;
 
 import task.feizi.navsimulator.LocationViewModel;
 import task.feizi.navsimulator.R;
 import task.feizi.navsimulator.databinding.ActivityMainBinding;
+import task.feizi.navsimulator.model.Resource;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -62,38 +64,70 @@ public class MainActivity extends AppCompatActivity {
         binding.map.setOnMapLongClickListener(new MapView.OnMapLongClickListener() {
             @Override
             public void onMapLongClick(LatLng latLng) {
-                addDestinationMarker(latLng); // destination marker will be added in clicked location and previous marker will be removed
-                Handler handler = new Handler(Looper.getMainLooper());
-                handler.post(new Runnable() {
-                    public void run() {
-                        drawRoute(); // get route information between origin and destination marker
-                    }
-                });
+                if (userCurrnetLocationMarker == null) {
+                    userOriginLocation = latLng;
+                    setOriginLoactionMarker(latLng);
+                } else {
+                    addDestinationMarker(latLng); // destination marker will be added in clicked location and previous marker will be removed
+                    Handler handler = new Handler(Looper.getMainLooper());
+                    handler.post(new Runnable() {
+                        public void run() {
+                            getRoute(); // get route information between origin and destination marker
+                        }
+                    });
+                }
 
             }
         });
     }
 
-    private void drawRoute() {
+    private void getRoute() {
         locationViewModel.getRoute(userOriginLocationMarker, destinationLocationMarker).observe(this, route -> {
-            // remove previous polyline if exist
-            if (onMapPolyline != null) {
-                binding.map.removePolyline(onMapPolyline);
-            }
 
-            routeOverviewPolylinePoints = new ArrayList<>(PolylineEncoding.decode(route.getOverviewPolyline().getEncodedPolyline()));
-            decodedStepByStepPath = new ArrayList<>();
-            // decoding each segment of steps and putting to an array
-            for (DirectionStep step : route.getLegs().get(0).getDirectionSteps()) {
-                decodedStepByStepPath.addAll(PolylineEncoding.decode(step.getEncodedPolyline()));
-            }
+            switch (route.status) {
+                case LOADING:
+                    displayLoading();
+                    break;
+                case ERROR:
+                    dismissLoading();
+                    Toast.makeText(MainActivity.this, route.message, Toast.LENGTH_LONG).show();
+                    break;
+                case SUCCESS:
+                    dismissLoading();
+                    drawRoute(route.data);
+                    break;
 
-            onMapPolyline = new Polyline(routeOverviewPolylinePoints, getLineStyle());
-            //draw polyline between route points
-            binding.map.addPolyline(onMapPolyline);
-            // focusing camera on first point of drawn line
-            setMapPosition();
+            }
         });
+    }
+
+    private void dismissLoading() {
+        //TODO hide loading
+
+    }
+
+    private void displayLoading() {
+        //TODO display loading state to user
+    }
+
+    private void drawRoute(Route route) {
+        // remove previous polyline if exist
+        if (onMapPolyline != null) {
+            binding.map.removePolyline(onMapPolyline);
+        }
+
+        routeOverviewPolylinePoints = new ArrayList<>(PolylineEncoding.decode(route.getOverviewPolyline().getEncodedPolyline()));
+        decodedStepByStepPath = new ArrayList<>();
+        // decoding each segment of steps and putting to an array
+        for (DirectionStep step : route.getLegs().get(0).getDirectionSteps()) {
+            decodedStepByStepPath.addAll(PolylineEncoding.decode(step.getEncodedPolyline()));
+        }
+
+        onMapPolyline = new Polyline(routeOverviewPolylinePoints, getLineStyle());
+        //draw polyline between route points
+        binding.map.addPolyline(onMapPolyline);
+        // focusing camera on first point of drawn line
+        setMapPosition();
     }
 
     private void setMapPosition() {
@@ -127,39 +161,37 @@ public class MainActivity extends AppCompatActivity {
             String[] permissions = {Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION};
             ActivityCompat.requestPermissions(this, permissions, LOCATION_REQUEST);
         }
-
-
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == LOCATION_REQUEST) {
-            invokeUserLocation();
-        }
-    }
 
     private void startLocationUpdate() {
         locationViewModel.getLocationLiveData().observe(this, locationModel -> {
-            // add user origin location for first time
-            if (userOriginLocation == null) {
-                userOriginLocation = locationModel;
-                setUserLocationOnMap();
+            if (locationModel.status == Resource.Status.SUCCESS) {
+                // add user origin location for first time
+                if (userOriginLocation == null) {
+                    userOriginLocation = locationModel.data;
+                    setUserLocationOnMap();
+
+                }
+                // add and update user current location marker
+                userCurrnetLocation = locationModel.data;
+                setUserCurrentLocationOnMap();
             }
-            // add and update user current location marker
-            userCurrnetLocation = locationModel;
-            setUserCurrentLocationOnMap();
 
         });
     }
 
     private void setUserLocationOnMap() {
+
         binding.map.moveCamera(userOriginLocation, 0);
         binding.map.setZoom(17, 2);
         setOriginLoactionMarker(userOriginLocation);
     }
+
     private void setUserCurrentLocationOnMap() {
         setCurrentLoactionMarker(userCurrnetLocation);
+
+
     }
 
     private void setOriginLoactionMarker(LatLng loc) {
@@ -168,6 +200,7 @@ public class MainActivity extends AppCompatActivity {
         }
         userOriginLocationMarker = addMarker(loc, R.drawable.ic_marker_a);
     }
+
     private void setCurrentLoactionMarker(LatLng loc) {
         if (userCurrnetLocationMarker != null) {
             binding.map.removeMarker(userCurrnetLocationMarker);
@@ -195,8 +228,18 @@ public class MainActivity extends AppCompatActivity {
         return marker;
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == LOCATION_REQUEST) {
+            invokeUserLocation();
+        }
+    }
+
     private boolean isPermissionGranted() {
-        return ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        return ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                &&
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
 
     }
 
@@ -204,6 +247,9 @@ public class MainActivity extends AppCompatActivity {
         return ActivityCompat.shouldShowRequestPermissionRationale(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
+        ) && ActivityCompat.shouldShowRequestPermissionRationale(
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION
         );
     }
 }

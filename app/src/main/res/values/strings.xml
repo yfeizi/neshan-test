@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Navigation simulator</string>
+    <string name="msg_choose_origin">لطفا مبدا خود با لمس صفحه مشخص کنید</string>
+    <string name="msg_choose_destination">لطفا مقصد خود با لمس صفحه مشخص کنید</string>
 </resources>

@@ -10,6 +10,7 @@ import org.neshan.mapsdk.model.Marker;
 import org.neshan.servicessdk.direction.model.Route;
 
 import task.feizi.navsimulator.model.DirectionRepository;
+import task.feizi.navsimulator.model.Resource;
 import task.feizi.navsimulator.model.UserLocationReposiotry;
 
 public class LocationViewModel extends AndroidViewModel {
@@ -20,7 +21,7 @@ public class LocationViewModel extends AndroidViewModel {
         locationLiveData = new UserLocationReposiotry(application);
     }
 
-    public MutableLiveData<Route> getRoute(Marker start, Marker end){
+    public MutableLiveData<Resource<Route>> getRoute(@NonNull Marker start,@NonNull Marker end){
         //return DirectionRepository.getInstance().getRouteBySdk(start,end);
         return DirectionRepository.getInstance().getRouteByRetrofit(start,end);
     }

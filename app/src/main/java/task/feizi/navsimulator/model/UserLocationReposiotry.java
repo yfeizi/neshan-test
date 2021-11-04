@@ -16,7 +16,7 @@ import com.google.android.gms.tasks.OnSuccessListener;
 
 import org.neshan.common.model.LatLng;
 
-public class UserLocationReposiotry extends LiveData<LatLng> {
+public class UserLocationReposiotry extends LiveData<Resource<LatLng>> {
     public static final int LOCATION_UPDATE_INTERVAL = 3000;
     public static final int LOCATION_UPDATE_FASTEST_INTERVAL = 3000;
     private final FusedLocationProviderClient fusedLocationProviderClient;
@@ -62,7 +62,9 @@ public class UserLocationReposiotry extends LiveData<LatLng> {
 
     private void setLocationData(Location location) {
         if (location != null)
-            this.setValue(new LatLng(location.getLongitude(), location.getLatitude()));
+            this.setValue(Resource.success(new LatLng(location.getLatitude(), location.getLongitude())));
+        else
+            this.setValue(Resource.error("اطلاعات مکانی موچود نیست", null));
     }
 
     @SuppressLint("MissingPermission")
