@@ -1,18 +1,21 @@
 package task.feizi.navsimulator.ui;
 
+import android.Manifest;
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.graphics.BitmapFactory;
+import android.location.LocationManager;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.View;
+import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.databinding.DataBindingUtil;
 import androidx.lifecycle.ViewModelProvider;
-
-import android.Manifest;
-import android.content.pm.PackageManager;
-import android.graphics.BitmapFactory;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.widget.Toast;
 
 import com.carto.graphics.Color;
 import com.carto.styles.LineStyle;
@@ -20,13 +23,12 @@ import com.carto.styles.LineStyleBuilder;
 import com.carto.styles.MarkerStyle;
 import com.carto.styles.MarkerStyleBuilder;
 import com.carto.utils.BitmapUtils;
+import com.carto.utils.Log;
 
 import org.neshan.common.model.LatLng;
 import org.neshan.common.utils.PolylineEncoding;
-import org.neshan.mapsdk.MapView;
 import org.neshan.mapsdk.model.Marker;
 import org.neshan.mapsdk.model.Polyline;
-import org.neshan.servicessdk.direction.model.DirectionStep;
 import org.neshan.servicessdk.direction.model.Route;
 
 import java.util.ArrayList;
@@ -36,16 +38,15 @@ import task.feizi.navsimulator.R;
 import task.feizi.navsimulator.databinding.ActivityMainBinding;
 import task.feizi.navsimulator.model.Resource;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
     private static final int LOCATION_REQUEST = 100;
+    public static final int CAMERA_DURATION_SECONDS = 1;
     private LocationViewModel locationViewModel;
     private ActivityMainBinding binding;
     private LatLng userOriginLocation;
     private Marker userOriginLocationMarker;
     private Marker destinationLocationMarker;
-    private ArrayList<LatLng> routeOverviewPolylinePoints;
-    private ArrayList<Object> decodedStepByStepPath;
     private Polyline onMapPolyline;
     private LatLng userCurrnetLocation;
     private Marker userCurrnetLocationMarker;
@@ -61,23 +62,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initMap() {
-        binding.map.setOnMapLongClickListener(new MapView.OnMapLongClickListener() {
-            @Override
-            public void onMapLongClick(LatLng latLng) {
-                if (userCurrnetLocationMarker == null) {
-                    userOriginLocation = latLng;
-                    setOriginLoactionMarker(latLng);
-                } else {
+        binding.map.setOnMapLongClickListener(latLng -> {
+            if (userCurrnetLocationMarker == null) {
+                userOriginLocation = latLng;
+                setOriginLoactionMarker(latLng);
+            } else {
+                Handler handler = new Handler(Looper.getMainLooper());
+                handler.post(() -> {
                     addDestinationMarker(latLng); // destination marker will be added in clicked location and previous marker will be removed
-                    Handler handler = new Handler(Looper.getMainLooper());
-                    handler.post(new Runnable() {
-                        public void run() {
-                            getRoute(); // get route information between origin and destination marker
-                        }
-                    });
-                }
-
+                    getRoute(); // get route information between origin and destination marker
+                });
             }
+
         });
     }
 
@@ -116,13 +112,7 @@ public class MainActivity extends AppCompatActivity {
             binding.map.removePolyline(onMapPolyline);
         }
 
-        routeOverviewPolylinePoints = new ArrayList<>(PolylineEncoding.decode(route.getOverviewPolyline().getEncodedPolyline()));
-        decodedStepByStepPath = new ArrayList<>();
-        // decoding each segment of steps and putting to an array
-        for (DirectionStep step : route.getLegs().get(0).getDirectionSteps()) {
-            decodedStepByStepPath.addAll(PolylineEncoding.decode(step.getEncodedPolyline()));
-        }
-
+        ArrayList<LatLng> routeOverviewPolylinePoints = new ArrayList<>(PolylineEncoding.decode(route.getOverviewPolyline().getEncodedPolyline()));
         onMapPolyline = new Polyline(routeOverviewPolylinePoints, getLineStyle());
         //draw polyline between route points
         binding.map.addPolyline(onMapPolyline);
@@ -133,7 +123,7 @@ public class MainActivity extends AppCompatActivity {
     private void setMapPosition() {
         double centerFirstMarkerX = userOriginLocationMarker.getLatLng().getLatitude();
         double centerFirstMarkerY = userOriginLocationMarker.getLatLng().getLongitude();
-        binding.map.moveCamera(new LatLng(centerFirstMarkerX, centerFirstMarkerY), 0.5f);
+        binding.map.moveCamera(new LatLng(centerFirstMarkerX, centerFirstMarkerY), CAMERA_DURATION_SECONDS);
         binding.map.setZoom(18, 0.5f);
 
     }
@@ -154,9 +144,14 @@ public class MainActivity extends AppCompatActivity {
 
     private void invokeUserLocation() {
         if (isPermissionGranted()) {
-            startLocationUpdate();
+            if (isGpsEnabled())
+                startLocationUpdate();
+            else {
+                Toast.makeText(this, getString(R.string.msg_gps_is_disabled), Toast.LENGTH_SHORT).show();
+
+            }
         } else if (shouldShowRequestPermission()) {
-            Toast.makeText(this, "App requires location permission", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this,getString(R.string.msg_erquire_location_permission), Toast.LENGTH_SHORT).show();
         } else {
             String[] permissions = {Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION};
             ActivityCompat.requestPermissions(this, permissions, LOCATION_REQUEST);
@@ -183,7 +178,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void setUserLocationOnMap() {
 
-        binding.map.moveCamera(userOriginLocation, 0);
+        binding.map.moveCamera(userOriginLocation, CAMERA_DURATION_SECONDS);
         binding.map.setZoom(17, 2);
         setOriginLoactionMarker(userOriginLocation);
     }
@@ -199,6 +194,19 @@ public class MainActivity extends AppCompatActivity {
             binding.map.removeMarker(userOriginLocationMarker);
         }
         userOriginLocationMarker = addMarker(loc, R.drawable.ic_marker_a);
+        binding.txtOrigin.setText(userOriginLocationMarker.getDescription());
+        locationViewModel.getLocationAddress(loc).observe(this, model -> {
+            switch (model.status){
+                case SUCCESS:
+                    binding.txtOrigin.setText(model.data != null ? model.data.getAddress() : "");
+                    break;
+                case ERROR:
+                    Toast.makeText(MainActivity.this, model.message, Toast.LENGTH_LONG).show();
+                    break;
+            }
+
+
+        });
     }
 
     private void setCurrentLoactionMarker(LatLng loc) {
@@ -206,6 +214,8 @@ public class MainActivity extends AppCompatActivity {
             binding.map.removeMarker(userCurrnetLocationMarker);
         }
         userCurrnetLocationMarker = addMarker(loc, R.drawable.ic_marker);
+
+
     }
 
     private void addDestinationMarker(LatLng location) {
@@ -213,6 +223,18 @@ public class MainActivity extends AppCompatActivity {
             binding.map.removeMarker(destinationLocationMarker);
         }
         destinationLocationMarker = addMarker(location, R.drawable.ic_marker_b);
+        locationViewModel.getLocationAddress(location).observe(this, model -> {
+            switch (model.status){
+                case SUCCESS:
+                    binding.txtDestination.setText(model.data != null ? model.data.getAddress() : "");
+                    break;
+                case ERROR:
+                    Toast.makeText(MainActivity.this, model.message, Toast.LENGTH_LONG).show();
+                    break;
+            }
+
+
+        });
     }
 
     private Marker addMarker(LatLng location, int resId) {
@@ -251,5 +273,36 @@ public class MainActivity extends AppCompatActivity {
                 this,
                 Manifest.permission.ACCESS_COARSE_LOCATION
         );
+    }
+
+    @Override
+    public void onClick(View view) {
+        if (view.getId() == R.id.btnMyLocation) {
+            if (userCurrnetLocation != null)
+                binding.map.moveCamera(userCurrnetLocation, CAMERA_DURATION_SECONDS);
+            else if (userOriginLocation != null) {
+                binding.map.moveCamera(userCurrnetLocation, CAMERA_DURATION_SECONDS);
+            }
+        }
+    }
+
+    private boolean isGpsEnabled(){
+        LocationManager lm = (LocationManager)getSystemService(Context.LOCATION_SERVICE);
+        boolean gps_enabled = false;
+        boolean network_enabled = false;
+
+        try {
+            gps_enabled = lm.isProviderEnabled(LocationManager.GPS_PROVIDER);
+        } catch(Exception ex) {
+            Log.debug(ex.getLocalizedMessage());
+        }
+
+        try {
+            network_enabled = lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+        } catch(Exception ex) {
+            Log.debug(ex.getLocalizedMessage());
+        }
+
+        return gps_enabled && network_enabled;
     }
 }

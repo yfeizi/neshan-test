@@ -20,7 +20,7 @@ public class UserLocationReposiotry extends LiveData<Resource<LatLng>> {
     public static final int LOCATION_UPDATE_INTERVAL = 3000;
     public static final int LOCATION_UPDATE_FASTEST_INTERVAL = 3000;
     private final FusedLocationProviderClient fusedLocationProviderClient;
-    private Context context;
+    private final Context context;
     private final LocationRequest locationRequest = LocationRequest.create();
     private final LocationCallback locationCallback = new LocationCallback() {
         @Override

@@ -2,4 +2,9 @@
     <string name="app_name">Navigation simulator</string>
     <string name="msg_choose_origin">لطفا مبدا خود با لمس صفحه مشخص کنید</string>
     <string name="msg_choose_destination">لطفا مقصد خود با لمس صفحه مشخص کنید</string>
+    <string name="lbl_my_location">My Location</string>
+    <string name="lbl_origin">مبدا:</string>
+    <string name="lbl_destination">مقصد:</string>
+    <string name="msg_erquire_location_permission">\"برای استفاده از امکانات نقشه، برنامه به مجوز مکانیابی احتیاج دارد. \"</string>
+    <string name="msg_gps_is_disabled">لطفا gps دستگاه خود را فعال نمایید.</string>
 </resources>
